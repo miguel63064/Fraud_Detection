@@ -1,0 +1,9 @@
+{
+    "accessibility.signals.terminalBell": {
+        "sound": "off",
+        "announcement": "off"
+    },
+    "accessibility.signals.terminalCommandFailed": {
+        "announcement": "off"
+    }
+}

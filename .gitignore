@@ -1,0 +1,14 @@
+# Ignorar datasets grandes
+data/raw/
+
+# Ignorar modelos e logs do MLflow
+mlruns/
+
+# Ignorar ficheiros grandes
+*.zip
+*.sh
+*.pkl
+
+
+
+

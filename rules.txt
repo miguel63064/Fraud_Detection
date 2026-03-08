@@ -1,0 +1,3 @@
+conda activate fraud-project
+
+API token: KGAT_29d3f198406e733be52210e1b54c6d21
