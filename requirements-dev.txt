@@ -1,0 +1,37 @@
+# Dependências de Desenvolvimento e Testes
+# Instalar com: pip install -r requirements-dev.txt
+
+# Testing Framework
+pytest==7.4.3
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+pytest-timeout==2.2.0
+pytest-xdist==3.5.0
+pytest-sugar==0.9.7
+
+# Code Quality
+flake8==6.1.0
+black==23.11.0
+isort==5.12.0
+pylint==3.0.3
+mypy==1.7.1
+
+# Security
+bandit==1.7.5
+safety>=3.0.0
+
+# Development Tools
+ipython==8.17.2
+jupyter==1.0.0
+notebook==7.0.6
+ipykernel==6.27.1
+
+# Documentation
+sphinx==7.2.6
+sphinx-rtd-theme==2.0.0
+
+# Additional utilities
+python-dotenv==1.0.0
+
+# packaging club (needed by wheel, black, etc.)
+packaging>=24.0
