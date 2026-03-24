@@ -160,6 +160,7 @@ class TestPrepareTestData:
 
 class TestDataQuality:
     """Testes de qualidade geral dos dados"""
+
     @pytest.mark.smoke
     def test_no_nan_in_split_features(self, split_datasets):
         """Verifica ausência de NaN em features após split"""

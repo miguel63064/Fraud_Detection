@@ -35,3 +35,5 @@ python-dotenv==1.0.0
 
 # packaging club (needed by wheel, black, etc.)
 packaging>=24.0
+
+pytest-timeout
