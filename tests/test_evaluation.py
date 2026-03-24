@@ -69,6 +69,7 @@ class TestMetricsCalculation:
         assert 0 <= precision <= 1
         assert 0 <= recall <= 1
 
+    @pytest.mark.smoke
     def test_metrics_consistent_across_splits(self, split_datasets):
         """Verifica se métricas são consistentes entre CV e Test"""
         x_train, y_train, x_cv, y_cv, x_test, y_test, scale_pos_weight = split_datasets

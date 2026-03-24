@@ -47,6 +47,7 @@ class TestDataSplit:
         assert abs(len(x_cv) / total - 0.15) < 0.01
         assert abs(len(x_test) / total - 0.15) < 0.01
 
+    @pytest.mark.smoke
     def test_split_no_overlap(self, train_data):
         """Verifica se não há overlap entre splits"""
         x_train, _, x_cv, _, x_test, _, _ = split_train_data(train_data)
@@ -159,7 +160,7 @@ class TestPrepareTestData:
 
 class TestDataQuality:
     """Testes de qualidade geral dos dados"""
-
+    @pytest.mark.smoke
     def test_no_nan_in_split_features(self, split_datasets):
         """Verifica ausência de NaN em features após split"""
         x_train, _, x_cv, _, x_test, _, _ = split_datasets
@@ -179,6 +180,7 @@ class TestDataQuality:
         pd.testing.assert_index_equal(x_train.columns, x_cv.columns)
         pd.testing.assert_index_equal(x_cv.columns, x_test.columns)
 
+    @pytest.mark.smoke
     def test_temporal_order_train_data(self, train_data):
         """Verifica se dados de treino estão ordenados por tempo"""
         # Ordena dados como a função faz

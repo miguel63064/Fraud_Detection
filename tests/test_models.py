@@ -28,7 +28,8 @@ class TestModelInstantiation:
 
 class TestModelTraining:
     """Testes para treino de modelos"""
-
+    
+    @pytest.mark.smoke
     def test_model_trains_successfully(self, split_datasets):
         """Verifica se modelo treina sem erros"""
         x_train, y_train, x_cv, y_cv, x_test, y_test, _ = split_datasets

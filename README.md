@@ -16,7 +16,7 @@ bash scripts/setup-hooks.sh
 
 Agora seus testes rodam automaticamente antes de cada commit! ✨
 
-## 🧪 Rodar Testes
+## Rodar Testes
 
 ### Começar Rápido
 ```bash
@@ -68,7 +68,7 @@ pytest tests/ -x
 pytest tests/ --pdb
 ```
 
-## 📊 Cobertura de Código
+## Cobertura de Código
 
 ```bash
 # Gerar relatório HTML
@@ -80,7 +80,7 @@ xdg-open htmlcov/index.html  # Linux
 start htmlcov/index.html  # Windows
 ```
 
-## 🔍 Validar antes de Commit
+## Validar antes de Commit
 
 ```bash
 # Pre-commit test (rápido)
@@ -91,7 +91,7 @@ git add .
 git commit -m "change"
 ```
 
-## 📝 Marcar Testes
+## Marcar Testes
 
 ```bash
 # Apenas testes de qualidade de dados
@@ -104,7 +104,7 @@ pytest tests/ -m model_quality
 pytest tests/ -m "not slow"
 ```
 
-## 🎯 GitHub Actions
+## GitHub Actions
 
 O CI/CD roda automaticamente em:
 - ✅ Push para `main` ou `develop`
@@ -131,7 +131,7 @@ git commit -m "feat: descrição"
 git push origin main
 ```
 
-## 📋 Arquivos Importantes
+## Arquivos Importantes
 
 | Arquivo | Descrição |
 |---------|-----------|
@@ -144,7 +144,7 @@ git push origin main
 | `TESTING.md` | Documentação detalhada |
 | `.github/CI-CD.md` | Documentação CI/CD |
 
-## 🆘 Troubleshooting
+## Troubleshooting
 
 ### Tests pass locally mas falham em CI
 ```bash
@@ -180,7 +180,7 @@ chmod +x .git/hooks/pre-commit
 bash scripts/pre-commit-test.sh
 ```
 
-## 📚 Referências
+## Referências
 
 - [Pytest Docs](https://docs.pytest.org/)
 - [GitHub Actions](https://docs.github.com/en/actions)
