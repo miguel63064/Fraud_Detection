@@ -79,21 +79,21 @@ def sample_data():
 
 @pytest.fixture
 def train_data(sample_data):
-    """Dados de treino (70% do sample)"""
+    """Training split (70% of the sample)"""
     train = sample_data.iloc[: int(len(sample_data) * 0.70)].copy()
     return train
 
 
 @pytest.fixture
 def test_data(sample_data):
-    """Dados de teste (30% do sample)"""
+    """Test split (30% of the sample)"""
     test = sample_data.iloc[int(len(sample_data) * 0.70) :].copy()
     return test
 
 
 @pytest.fixture
 def fitted_data(train_data, test_data):
-    """Dados processados através de feature engineering básico"""
+    """Data processed through the feature engineering pipeline."""
     from src.feature_engineer import fit_transform
 
     train = train_data.copy()
@@ -106,14 +106,14 @@ def fitted_data(train_data, test_data):
 
 @pytest.fixture
 def artifacts(fitted_data):
-    """Apenas os artefactos do treino — útil para testes do transform()."""
+    """Training artifacts only — convenient for transform() tests."""
     _, _, arts = fitted_data
     return arts
 
 
 @pytest.fixture
 def split_datasets(fitted_data):
-    """Split de datasets para treinamento"""
+    """Split datasets ready for model training."""
     from src.load_data import split_train_data
 
     train, _, _ = fitted_data

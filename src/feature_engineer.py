@@ -46,7 +46,7 @@ FREQ_COLS = [
 
 
 # =============================================================================
-# Funções internas — operam num único DataFrame (train ou test)
+# Internal helpers — operate on a single DataFrame (train or test)
 # =============================================================================
 
 
@@ -72,21 +72,22 @@ def _amt_email_features(df):
 
 
 # =============================================================================
-# FIT_TRANSFORM — usado no main.py (treino)
-# Aprende os parâmetros no train, aplica em train+test
-# Devolve os artefactos para guardar no MLflow
+# FIT_TRANSFORM — called from main.py during training
+# Learns parameters from train, applies them to train + test.
+# Returns artifacts dict for saving to MLflow.
 # =============================================================================
 
 
 def fit_transform(train, test):
     """
-    Chama no main.py durante o treino.
-    Devolve (train, test, artifacts) onde artifacts contém
-    tudo o que a API precisa para transformar transações novas.
+    Called from main.py during training.
+
+    Returns (train, test, artifacts) where artifacts contains everything
+    the API needs to preprocess new transactions at inference time.
     """
     artifacts = {}
 
-    # 1. Missing values — aprende medianas no train
+    # 1. Missing values — learn medians from training data
     num_cols = train.select_dtypes(include=[np.number]).columns.tolist()
     num_cols = [
         c for c in num_cols if c not in ["TransactionID", "isFraud", "TransactionDT"]
@@ -105,18 +106,18 @@ def fit_transform(train, test):
         if col in test.columns:
             test[col] = test[col].fillna("unknown")
 
-    # 2. Combine features (não aprende nada, só cria colunas)
+    # 2. Combine features (stateless — only creates new columns)
     _combine_features(train)
     _combine_features(test)
 
-    # 3. Categorical encoding — fit no train, transform em ambos
+    # 3. Categorical encoding — fit on train, transform both
     cols_present = [c for c in CAT_COLS if c in train.columns]
     enc = OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)
     train[cols_present] = enc.fit_transform(train[cols_present])
     test[cols_present] = enc.transform(test[cols_present])
     artifacts["enc"] = enc
 
-    # 4. Aggregate user stats — aprende no train, mapeia em ambos
+    # 4. Aggregate user stats — fit on train, map to both
     agg_dict = {
         "TransactionAmt": ["mean", "std", "max", "min"],
         "D1": ["mean", "std"],
@@ -142,7 +143,7 @@ def fit_transform(train, test):
     _amt_email_features(train)
     _amt_email_features(test)
 
-    # 7. Frequency encoding — aprende no train, aplica em ambos
+    # 7. Frequency encoding — fit on train, map to both
     freq_maps = {}
     for col in FREQ_COLS:
         if col not in train.columns:
@@ -158,22 +159,24 @@ def fit_transform(train, test):
 
 
 # =============================================================================
-# TRANSFORM — usado na API (produção)
-# Recebe um DataFrame com UMA transação e os artefactos do treino
+# TRANSFORM — called by the API at inference time
+# Receives a single-row DataFrame and the training artifacts dict.
 # =============================================================================
 
 
 def transform(df, artifacts):
     """
-    Chama na API para transformar uma transação nova.
-    df       : DataFrame com uma linha (a transação recebida)
-    artifacts: dicionário devolvido pelo fit_transform e guardado no MLflow
+    Called by the API to preprocess a new transaction.
+
+    Args:
+        df:        Single-row DataFrame representing the incoming transaction.
+        artifacts: Dict returned by fit_transform and persisted in MLflow.
     """
     for col in CAT_COLS:
         if col not in df.columns:
             df[col] = "unknown"
 
-    # 1. Missing values — usa medianas do treino
+    # 1. Missing values — apply training medians
     medians = artifacts.get("medians", {})
     for col, median_val in medians.items():
         if col in df.columns:
@@ -186,13 +189,13 @@ def transform(df, artifacts):
     # 2. Combine features
     _combine_features(df)
 
-    # 3. Categorical encoding — usa o encoder do treino
+    # 3. Categorical encoding — apply training encoder
     enc = artifacts.get("enc")
     cols_present = [c for c in CAT_COLS if c in df.columns]
     if enc is not None:
         df[cols_present] = enc.transform(df[cols_present])
 
-    # 4. Aggregate user stats — usa uid1_agg do treino
+    # 4. Aggregate user stats — map from training aggregation table
     uid1_agg = artifacts.get("uid1_agg")
     if uid1_agg is not None:
         for col in uid1_agg.columns:
@@ -218,7 +221,7 @@ def transform(df, artifacts):
     # 6. Amount + email features
     _amt_email_features(df)
 
-    # 7. Frequency encoding — usa freq_maps do treino
+    # 7. Frequency encoding — apply training frequency maps
     freq_maps = artifacts.get("freq_maps", {})
     for col in FREQ_COLS:
         if col not in df.columns:

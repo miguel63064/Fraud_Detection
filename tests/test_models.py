@@ -5,10 +5,10 @@ from src.models import lgb_model, train_model
 
 
 class TestModelInstantiation:
-    """Testes para criação de modelos"""
+    """Tests for model instantiation"""
 
     def test_lgb_model_creation(self):
-        """Verifica criação de modelo LightGBM"""
+        """Verify that a LightGBM model is created with the expected interface."""
         model = lgb_model(scale_pos_weight=1)
 
         assert model is not None
@@ -17,7 +17,7 @@ class TestModelInstantiation:
         assert hasattr(model, "predict")
 
     def test_lgb_model_params_set(self):
-        """Verifica se parâmetros estão configurados"""
+        """Verify that key hyperparameters are set to valid values."""
         model = lgb_model(scale_pos_weight=1)
         params = model.get_params()
 
@@ -27,11 +27,11 @@ class TestModelInstantiation:
 
 
 class TestModelTraining:
-    """Testes para treino de modelos"""
+    """Tests for model training"""
 
     @pytest.mark.smoke
     def test_model_trains_successfully(self, split_datasets):
-        """Verifica se modelo treina sem erros"""
+        """Verify that the model trains without raising an exception."""
         x_train, y_train, x_cv, y_cv, x_test, y_test, _ = split_datasets
 
         model = lgb_model(scale_pos_weight=1)
@@ -40,10 +40,10 @@ class TestModelTraining:
             train_model(model, x_train, y_train, x_cv, y_cv)
             assert True
         except Exception as e:
-            pytest.fail(f"Modelo falhou ao treinar: {e}")
+            pytest.fail(f"Model failed to train: {e}")
 
     def test_model_produces_predictions(self, split_datasets):
-        """Verifica se modelo produz predições"""
+        """Verify that predict_proba returns an array of the expected shape."""
         x_train, y_train, x_cv, y_cv, x_test, y_test, _ = split_datasets
 
         model = lgb_model(scale_pos_weight=1)
@@ -53,10 +53,10 @@ class TestModelTraining:
 
         assert preds is not None
         assert preds.shape[0] == len(x_cv)
-        assert preds.shape[1] == 2  # Probabilidades para 2 classes
+        assert preds.shape[1] == 2  # Probabilities for 2 classes
 
     def test_model_predictions_valid_probabilities(self, split_datasets):
-        """Verifica se predições são probabilidades válidas [0, 1]"""
+        """Verify that output probabilities are in [0, 1] and sum to 1."""
         x_train, y_train, x_cv, y_cv, x_test, y_test, _ = split_datasets
 
         model = lgb_model(scale_pos_weight=1)
@@ -65,27 +65,27 @@ class TestModelTraining:
         preds = model.predict_proba(x_cv)
 
         assert np.all(preds >= 0) and np.all(preds <= 1)
-        # Soma de probabilidades deve ser 1
+        # Probabilities for both classes must sum to 1
         np.testing.assert_array_almost_equal(preds.sum(axis=1), np.ones(len(preds)))
 
     def test_model_auc_above_threshold(self, split_datasets):
-        """Verifica se AUC está acima do threshold mínimo"""
+        """Verify AUC is above the minimum acceptable threshold."""
         x_train, y_train, x_cv, y_cv, x_test, y_test, _ = split_datasets
 
         model = lgb_model(scale_pos_weight=1)
         train_model(model, x_train, y_train, x_cv, y_cv)
 
-        # Predições de probabilidade para a classe positiva
+        # Positive class probability predictions
         preds = model.predict_proba(x_test)[:, 1]
         auc = roc_auc_score(y_test, preds)
 
-        # AUC mínimo aceitável (modelo melhor que aleatório)
+        # AUC must exceed random baseline
         assert auc > 0.5
-        # Para um modelo decente em dados sintéticos
+        # For a reasonably trained model on synthetic data
         assert auc > 0.5
 
     def test_model_handles_imbalanced_data(self, split_datasets):
-        """Verifica se modelo lida com dados desbalanceados"""
+        """Verify the model predicts both classes on imbalanced data."""
         x_train, y_train, x_cv, y_cv, x_test, y_test, scale_pos_weight = split_datasets
 
         model = lgb_model(scale_pos_weight=1)
@@ -97,7 +97,7 @@ class TestModelTraining:
         assert set(np.unique(preds)) == {0, 1}
 
     def test_model_predictions_shape_matches_input(self, split_datasets):
-        """Verifica se shape das predições match com input"""
+        """Verify prediction array shapes match the input size."""
         x_train, y_train, x_cv, y_cv, x_test, y_test, scale_pos_weight = split_datasets
 
         model = lgb_model(scale_pos_weight=1)
@@ -112,27 +112,27 @@ class TestModelTraining:
 
 
 class TestModelConsistency:
-    """Testes de consistência e reproducibilidade"""
+    """Tests for model consistency and reproducibility"""
 
     def test_model_deterministic_with_seed(self, split_datasets):
-        """Verifica se modelo com seed produz resultados consistentes"""
+        """Verify that two models trained identically produce the same predictions."""
         x_train, y_train, x_cv, y_cv, x_test, y_test, scale_pos_weight = split_datasets
 
-        # Treina modelo 1
+        # Train model 1
         model1 = lgb_model(scale_pos_weight=1)
         train_model(model1, x_train, y_train, x_cv, y_cv)
         preds1 = model1.predict_proba(x_test)
 
-        # Treina modelo 2 (mesma configuração)
+        # Train model 2 (same configuration)
         model2 = lgb_model(scale_pos_weight=1)
         train_model(model2, x_train, y_train, x_cv, y_cv)
         preds2 = model2.predict_proba(x_test)
 
-        # Predições devem ser muito próximas (LightGBM com seed)
+        # Predictions should be nearly identical (LightGBM with fixed seed)
         np.testing.assert_array_almost_equal(preds1, preds2, decimal=5)
 
     def test_model_performance_cv_vs_test(self, split_datasets):
-        """Verifica se performance é razoável em CV vs Test"""
+        """Verify that CV and test AUC are reasonably close (no severe overfitting)."""
         x_train, y_train, x_cv, y_cv, x_test, y_test, scale_pos_weight = split_datasets
 
         model = lgb_model(scale_pos_weight=1)
@@ -144,9 +144,9 @@ class TestModelConsistency:
         cv_auc = roc_auc_score(y_cv, cv_preds)
         test_auc = roc_auc_score(y_test, test_preds)
 
-        # Não deve haver overfitting excessivo
+        # No excessive overfitting
         assert abs(cv_auc - test_auc) < 0.25
 
-        # Ambos devem estar razoáveis
+        # Both should be reasonable
         assert cv_auc > 0.5
         assert test_auc > 0.5

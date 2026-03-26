@@ -5,10 +5,10 @@ from src.load_data import split_train_data, prepare_final_test, reduce_mem_usage
 
 
 class TestDataLoading:
-    """Testes para carregamento e preparação de dados"""
+    """Tests for data loading and memory reduction"""
 
     def test_reduce_mem_usage_compresses_data(self, sample_data):
-        """Verifica se reduce_mem_usage reduz memória"""
+        """Verify that reduce_mem_usage reduces memory footprint."""
         df = sample_data.copy()
         original_memory = df.memory_usage(deep=True).sum()
 
@@ -18,11 +18,11 @@ class TestDataLoading:
         assert reduced_memory <= original_memory
 
     def test_reduce_mem_usage_preserves_values(self, sample_data):
-        """Verifica se valores são preservados após reduce_mem_usage"""
+        """Verify that numeric values are preserved after dtype downcast."""
         df = sample_data.copy()
         df_reduced = reduce_mem_usage(df)
 
-        # Valores numéricos devem ser aproximadamente iguais
+        # Numeric values must be approximately equal after downcast
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         for col in numeric_cols:
             if df[col].dtype != object:
@@ -35,10 +35,10 @@ class TestDataLoading:
 
 
 class TestDataSplit:
-    """Testes para split de dados de treino"""
+    """Tests for train/CV/test splitting"""
 
     def test_split_proportions(self, train_data):
-        """Verifica proporções do split 70-15-15"""
+        """Verify 70/15/15 split proportions."""
         x_train, _, x_cv, _, x_test, _, _ = split_train_data(train_data)
 
         total = len(x_train) + len(x_cv) + len(x_test)
@@ -49,10 +49,10 @@ class TestDataSplit:
 
     @pytest.mark.smoke
     def test_split_no_overlap(self, train_data):
-        """Verifica se não há overlap entre splits"""
+        """Verify there is no index overlap between splits."""
         x_train, _, x_cv, _, x_test, _, _ = split_train_data(train_data)
 
-        # Verifica índices (não devem se sobrepor)
+        # Check that indices do not overlap
         train_indices = set(x_train.index)
         cv_indices = set(x_cv.index)
         test_indices = set(x_test.index)
@@ -62,7 +62,7 @@ class TestDataSplit:
         assert len(cv_indices & test_indices) == 0
 
     def test_split_preserves_target_distribution(self, train_data):
-        """Verifica se distribuição de fraude é preservada"""
+        """Verify that fraud rate is roughly preserved across splits."""
         x_train, y_train, x_cv, y_cv, x_test, y_test, _ = split_train_data(train_data)
 
         original_fraud_ratio = train_data["isFraud"].mean()
@@ -70,13 +70,13 @@ class TestDataSplit:
         cv_fraud_ratio = y_cv.mean()
         test_fraud_ratio = y_test.mean()
 
-        # Ratios devem estar próximos (permitindo variação)
+        # Ratios should be close (allowing reasonable variance)
         assert abs(train_fraud_ratio - original_fraud_ratio) < 0.05
         assert abs(cv_fraud_ratio - original_fraud_ratio) < 0.05
         assert abs(test_fraud_ratio - original_fraud_ratio) < 0.05
 
     def test_split_y_dimensions(self, train_data):
-        """Verifica dimensões dos arrays y"""
+        """Verify shape and length consistency of y arrays."""
         x_train, y_train, x_cv, y_cv, x_test, y_test, _ = split_train_data(train_data)
 
         assert y_train.ndim == 1
@@ -88,14 +88,14 @@ class TestDataSplit:
         assert len(y_test) == len(x_test)
 
     def test_split_y_values_binary(self, train_data):
-        """Verifica se y contém apenas 0 e 1"""
+        """Verify that y arrays contain only 0 and 1."""
         x_train, y_train, x_cv, y_cv, x_test, y_test, _ = split_train_data(train_data)
 
         for y in [y_train, y_cv, y_test]:
             assert set(np.unique(y)) == {0, 1}
 
     def test_split_scale_pos_weight(self, train_data):
-        """Verifica se scale_pos_weight é calculado corretamente"""
+        """Verify that scale_pos_weight equals the negative/positive class ratio."""
         (
             x_train,
             y_train,
@@ -111,7 +111,7 @@ class TestDataSplit:
         assert scale_pos_weight > 0
 
     def test_split_removes_required_columns(self, train_data):
-        """Verifica se colunas obrigatórias são removidas"""
+        """Verify that metadata columns are excluded from feature arrays."""
         x_train, y_train, x_cv, y_cv, x_test, y_test, _ = split_train_data(train_data)
 
         forbidden_cols = ["TransactionID", "isFraud", "TransactionDT"]
@@ -122,7 +122,7 @@ class TestDataSplit:
             assert col not in x_test.columns
 
     def test_split_x_dimensions(self, train_data):
-        """Verifica dimensões dos arrays X"""
+        """Verify that X and y arrays have matching shapes."""
         x_train, y_train, x_cv, y_cv, x_test, y_test, _ = split_train_data(train_data)
 
         assert x_train.shape[0] == len(y_train)
@@ -134,17 +134,17 @@ class TestDataSplit:
 
 
 class TestPrepareTestData:
-    """Testes para preparação de dados de teste final"""
+    """Tests for final test set preparation"""
 
     def test_prepare_final_test_shape(self, test_data):
-        """Verifica forma dos dados preparados"""
+        """Verify output shape matches input."""
         x_final_test, test_ids = prepare_final_test(test_data)
 
         assert len(x_final_test) == len(test_data)
         assert len(test_ids) == len(test_data)
 
     def test_prepare_final_test_removes_cols(self, test_data):
-        """Verifica remoção de colunas obrigatórias"""
+        """Verify that metadata columns are dropped."""
         x_final_test, test_ids = prepare_final_test(test_data)
 
         forbidden_cols = ["TransactionID", "TransactionDT"]
@@ -152,22 +152,22 @@ class TestPrepareTestData:
             assert col not in x_final_test.columns
 
     def test_prepare_final_test_no_nulls_in_ids(self, test_data):
-        """Verifica ausência de nulls em IDs"""
+        """Verify that TransactionID column has no nulls."""
         x_final_test, test_ids = prepare_final_test(test_data)
 
         assert not test_ids.isnull().any()
 
 
 class TestDataQuality:
-    """Testes de qualidade geral dos dados"""
+    """General data quality tests"""
 
     @pytest.mark.smoke
     def test_no_nan_in_split_features(self, split_datasets):
-        """Verifica ausência de NaN em features após split"""
+        """Verify no NaN values remain in features after split."""
         x_train, _, x_cv, _, x_test, _, _ = split_datasets
 
         nan_cols = x_train.columns[x_train.isnull().any()].tolist()
-        print(f"Colunas com NaN: {nan_cols}")
+        print(f"Columns with NaN: {nan_cols}")
 
         # XGBoost e LightGBM não lidam bem com NaN
         assert not x_train.isnull().any().any()
@@ -175,7 +175,7 @@ class TestDataQuality:
         assert not x_test.isnull().any().any()
 
     def test_data_types_consistency(self, split_datasets):
-        """Verifica consistência de tipos entre splits"""
+        """Verify column dtypes are consistent across splits."""
         x_train, y_train, x_cv, y_cv, x_test, y_test, _ = split_datasets
 
         pd.testing.assert_index_equal(x_train.columns, x_cv.columns)
@@ -183,12 +183,11 @@ class TestDataQuality:
 
     @pytest.mark.smoke
     def test_temporal_order_train_data(self, train_data):
-        """Verifica se dados de treino estão ordenados por tempo"""
-        # Ordena dados como a função faz
+        """Verify that splits are ordered by time to prevent data leakage."""
+        # Sort data as the function does internally
         train_sorted = train_data.sort_values("TransactionDT").reset_index(drop=True)
 
-        # No split, treino deve ser antes de CV, e CV antes de test
-        # Isso evita data leakage
+        # Train must precede CV, and CV must precede test — no data leakage
         train_max_dt = train_sorted.iloc[: int(len(train_sorted) * 0.70)][
             "TransactionDT"
         ].max()

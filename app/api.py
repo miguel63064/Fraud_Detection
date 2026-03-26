@@ -1,8 +1,8 @@
 """
 Fraud Detection API
 -------------------
-Serve o modelo LightGBM treinado no main.py via MLflow.
-Usa diretamente o transform() do src/feature_engineer.py.
+Serves the LightGBM model trained in main.py via MLflow.
+Uses transform() from src/feature_engineer.py for inference preprocessing.
 """
 
 import os
@@ -15,46 +15,49 @@ from pydantic import BaseModel
 from typing import Optional
 import logging
 
-from src.feature_engineer import transform                           # ← importa direto
+from src.feature_engineer import transform
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Fraud Detection API",
-    description="Detecção de fraude em transações — modelo LightGBM + MLflow.",
+    description="Real-time fraud detection for financial transactions — LightGBM + MLflow.",
     version="1.0.0",
 )
 
-# Configura tracking URI via variável de ambiente (suporta file:// e http://)
+# Configure MLflow tracking URI from environment (supports file:// and http://)
 mlflow_tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
 if mlflow_tracking_uri:
     mlflow.set_tracking_uri(mlflow_tracking_uri)
     logger.info(f"MLflow tracking URI: {mlflow_tracking_uri}")
 
 # ---------------------------------------------------------------------------
-# Autenticação
+# Authentication
 # ---------------------------------------------------------------------------
 API_KEY = os.getenv("FRAUD_API_KEY", "fraud")
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
-def verify_api_key(key: str = Security(api_key_header)):
+
+def verify_api_key(key: str = Security(api_key_header)) -> str:
     if key != API_KEY:
-        raise HTTPException(status_code=403, detail="API Key inválida")
+        raise HTTPException(status_code=403, detail="Invalid API key.")
     return key
 
 # ---------------------------------------------------------------------------
-# Estado global
+# Global state
 # ---------------------------------------------------------------------------
 model = None
-artifacts = None   # artefactos do treino (medianas, encoder, freq_maps, ...)
+artifacts = None        # training artifacts: medians, encoder, freq_maps, ...
+reference_stats = None  # training distribution stats for drift detection
 
 # ---------------------------------------------------------------------------
-# Arranque
+# Startup
 # ---------------------------------------------------------------------------
 @app.on_event("startup")
-async def load_model():
-    global model, artifacts
+async def load_model() -> None:
+    """Load model and training artifacts from MLflow on application startup."""
+    global model, artifacts, reference_stats
 
     run_id = os.getenv("MLFLOW_RUN_ID")
 
@@ -65,8 +68,8 @@ async def load_model():
 
         if exp is None:
             raise RuntimeError(
-                f"Experimento MLflow '{experiment_name}' não encontrado. "
-                "Monte o diretório mlruns com -v e defina MLFLOW_TRACKING_URI=file:///app/mlruns."
+                f"MLflow experiment '{experiment_name}' not found. "
+                "Mount the mlruns directory with -v and set MLFLOW_TRACKING_URI=file:///app/mlruns."
             )
 
         runs = client.search_runs(
@@ -78,18 +81,18 @@ async def load_model():
 
         if not runs:
             raise RuntimeError(
-                f"Nenhum run FINISHED encontrado no experimento '{experiment_name}'. "
-                "Treine o modelo antes (python main.py) e monte o mlruns no container."
+                f"No finished runs found in experiment '{experiment_name}'. "
+                "Train the model first (python main.py) and mount the mlruns directory."
             )
 
         run_id = runs[0].info.run_id
 
-    logger.info(f"A carregar modelo do run: {run_id}")
+    logger.info(f"Loading model from run: {run_id}")
 
     tracking_uri = mlflow.get_tracking_uri()
     if tracking_uri.startswith("file:"):
-        # O artifact_uri no meta.yaml guarda o path absoluto do host.
-        # Construímos o path a partir do tracking URI configurado no container.
+        # artifact_uri in meta.yaml stores the absolute host path, which may
+        # not exist inside the container. Build the path from the configured URI.
         base_path = tracking_uri[len("file:"):].lstrip("/")
         if not base_path.startswith("/"):
             base_path = "/" + base_path
@@ -100,17 +103,29 @@ async def load_model():
         artifacts = joblib.load(
             os.path.join(artifact_base, "train_artifacts", "artifacts.pkl")
         )
+        ref_path = os.path.join(artifact_base, "train_artifacts", "reference_stats.json")
     else:
-        # Tracking remoto (http://, s3://, etc.)
+        # Remote tracking (http://, s3://, etc.)
         model = mlflow.sklearn.load_model(f"runs:/{run_id}/model")
         client = mlflow.tracking.MlflowClient()
         local_dir = client.download_artifacts(run_id, "train_artifacts")
         artifacts = joblib.load(os.path.join(local_dir, "artifacts.pkl"))
+        ref_path = os.path.join(local_dir, "reference_stats.json")
 
-    logger.info("Modelo e artefactos carregados com sucesso!")
+    if os.path.exists(ref_path):
+        import json
+        with open(ref_path) as f:
+            reference_stats = json.load(f)
+        logger.info("Reference statistics loaded — drift detection is active.")
+    else:
+        logger.warning(
+            "reference_stats.json not found — retrain the model to enable drift detection."
+        )
+
+    logger.info("Model and artifacts loaded successfully.")
 
 # ---------------------------------------------------------------------------
-# Schemas
+# Request / Response schemas
 # ---------------------------------------------------------------------------
 class TransactionInput(BaseModel):
     TransactionDT: float
@@ -186,14 +201,14 @@ class BatchResponse(BaseModel):
     fraud_count: int
 
 # ---------------------------------------------------------------------------
-# Previsão
+# Inference
 # ---------------------------------------------------------------------------
 def predict_one(transaction: TransactionInput) -> PredictionResponse:
     df = pd.DataFrame([transaction.model_dump()])
 
-    df = transform(df, artifacts)           # ← usa a função do teu src/
+    df = transform(df, artifacts)
 
-    # Alinha colunas com as que o modelo espera
+    # Align columns to match those expected by the model
     if hasattr(model, 'feature_name_'):
         for col in model.feature_name_:
             if col not in df.columns:
@@ -212,32 +227,35 @@ def predict_one(transaction: TransactionInput) -> PredictionResponse:
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
-@app.get("/health")
-async def health():
+@app.get("/health", tags=["Monitoring"])
+async def health() -> dict:
+    """Health check. Returns whether the model is loaded and ready."""
     return {"status": "ok", "model_loaded": model is not None}
 
 
-@app.post("/predict", response_model=PredictionResponse)
+@app.post("/predict", response_model=PredictionResponse, tags=["Inference"])
 async def predict(
     transaction: TransactionInput,
     _: str = Depends(verify_api_key),
 ):
+    """Score a single transaction and return fraud probability."""
     if model is None:
-        raise HTTPException(status_code=503, detail="Modelo não carregado")
+        raise HTTPException(status_code=503, detail="Model not loaded")
     try:
         return predict_one(transaction)
     except Exception as e:
-        logger.error(f"Erro: {e}")
+        logger.error("Prediction error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/predict/batch", response_model=BatchResponse)
+@app.post("/predict/batch", response_model=BatchResponse, tags=["Inference"])
 async def predict_batch(
     payload: BatchInput,
     _: str = Depends(verify_api_key),
 ):
+    """Score a batch of transactions in a single request."""
     if model is None:
-        raise HTTPException(status_code=503, detail="Modelo não carregado")
+        raise HTTPException(status_code=503, detail="Model not loaded")
     predictions = [predict_one(t) for t in payload.transactions]
     return BatchResponse(
         predictions=predictions,

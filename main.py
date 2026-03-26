@@ -1,3 +1,9 @@
+"""
+Training pipeline for the fraud detection model.
+
+Loads data, engineers features, trains a LightGBM classifier, logs
+everything to MLflow, and writes a Kaggle submission CSV.
+"""
 import mlflow
 import os
 import joblib
@@ -18,9 +24,10 @@ mlflow.set_experiment("fraud_detection")
 
 with mlflow.start_run(run_name="lgb_best_params"):
     train, test = load_data()
-    print("Data loaded successfully!")
+    print("Data loaded.")
+    reference_stats = compute_reference_stats(train)
     train, test, artifacts = fit_transform(train, test)
-    print("Features engineered successfully!")
+    print("Features engineered.")
 
     x_train, y_train, x_cv, y_cv, x_test, y_test, scale_pos_weight = split_train_data(
         train

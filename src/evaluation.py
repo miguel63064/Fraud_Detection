@@ -13,7 +13,7 @@ def evaluation(model, x_cv, y_cv, x_test, y_test):
     cv_proba = model.predict_proba(x_cv)[:, 1]
     test_proba = model.predict_proba(x_test)[:, 1]
 
-    # Converte probabilidades em classes (threshold 0.3)
+    # Convert probabilities to binary labels (threshold 0.3)
     cv_preds = (cv_proba >= 0.3).astype(int)
     test_preds = (test_proba >= 0.3).astype(int)
 
@@ -21,7 +21,7 @@ def evaluation(model, x_cv, y_cv, x_test, y_test):
         # AUC-ROC
         "cv_auc": roc_auc_score(y_cv, cv_proba),
         "test_auc": roc_auc_score(y_test, test_proba),
-        # PR AUC (melhor para datasets desbalanceados como fraud)
+        # PR-AUC (better than ROC-AUC for imbalanced datasets like fraud)
         "cv_pr_auc": average_precision_score(y_cv, cv_proba),
         "test_pr_auc": average_precision_score(y_test, test_proba),
         # Precision
@@ -52,7 +52,7 @@ def evaluation(model, x_cv, y_cv, x_test, y_test):
 
     plot_importance(model)
 
-    # Guarda tudo no MLflow
+    # Log all metrics to MLflow
     mlflow.log_metrics(metrics)
 
 
@@ -65,11 +65,9 @@ def plot_importance(model):
         {"feature": model.feature_name_, "importance": model.feature_importances_}
     ).sort_values("importance", ascending=False)
 
-    print("\nTop 20 features:")
+    print("\nTop 10 features:")
     print(importance.head(10).to_string())
-    print(f"\nFeatures com importance zero: {(importance['importance']==0).sum()}")
-    print(
-        f"Features com importance zero: {importance[importance['importance']==0]['feature'].tolist()}"
-    )
+    print(f"\nFeatures with zero importance: {(importance['importance']==0).sum()}")
+    print(importance[importance['importance']==0]['feature'].tolist())
 
     return importance

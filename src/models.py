@@ -23,15 +23,15 @@ def lgb_model(scale_pos_weight):
 
 def xgb_model(scale_pos_weight):
     params = dict(
-        n_estimators=500,  # número máximo de árvores
-        learning_rate=0.03,  # taxa de aprendizado
-        max_depth=6,  # profundidade da árvore
-        min_child_weight=5,  # Exige mais amostras por folha (evita memorizar fraudes raras)
+        n_estimators=500,        # max trees
+        learning_rate=0.03,      # shrinkage factor per step
+        max_depth=6,             # tree depth
+        min_child_weight=5,      # min samples per leaf (reduces rare-fraud overfitting)
         gamma=1,
-        subsample=0.8,  # amostragem de linhas
-        colsample_bytree=0.8,  # amostragem de features
-        scale_pos_weight=scale_pos_weight,  # balanceamento
-        eval_metric="auc",  # métrica de avaliação
+        subsample=0.8,           # row subsampling
+        colsample_bytree=0.8,    # feature subsampling
+        scale_pos_weight=scale_pos_weight,  # class imbalance weight
+        eval_metric="auc",       # early-stopping metric
         random_state=42,
         early_stopping_rounds=50,
     )
@@ -79,7 +79,7 @@ def optimize_lgb(x_train, y_train, x_cv, y_cv, x_test, y_test, n_trials=50):
             f'Trial {trial.number:3d} | AUC: {trial.value:.4f} | Test AUC: {trial.user_attrs.get("test_auc", 0):.4f} | Best: {study.best_value:.4f}'
         )
 
-        # Regista cada trial como nested run no MLflow
+        # Log each trial as a nested MLflow run
         with mlflow.start_run(run_name=f"trial_{trial.number}", nested=True):
             mlflow.log_params(trial.params)
             mlflow.log_metric("test_auc", trial.user_attrs.get("test_auc", 0))
@@ -89,8 +89,8 @@ def optimize_lgb(x_train, y_train, x_cv, y_cv, x_test, y_test, n_trials=50):
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     study.optimize(objective, n_trials=n_trials, callbacks=[callback])
 
-    print(f"\nMelhor AUC: {study.best_value:.4f}")
-    print(f"Melhores parâmetros: {study.best_params}")
+    print(f"\nBest AUC: {study.best_value:.4f}")
+    print(f"Best parameters: {study.best_params}")
 
     return study.best_params
 

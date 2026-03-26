@@ -25,7 +25,7 @@ def reduce_mem_usage(df):
 
 
 def load_data():
-    # Carregar dados
+    # Load raw CSV files from disk
     train_identity = pd.read_csv("data/raw/train_identity.csv")
     train_identity = reduce_mem_usage(train_identity)
     train_transaction = pd.read_csv("data/raw/train_transaction.csv")
@@ -50,8 +50,8 @@ def split_train_data(train):
     n = len(train)
 
     train_set = train.iloc[: int(n * 0.70)]  # 70% — train
-    cv_set = train.iloc[int(n * 0.70) : int(n * 0.85)]  # 15% - validation
-    test_set = train.iloc[int(n * 0.85) :]  # 15% — test
+    cv_set = train.iloc[int(n * 0.70) : int(n * 0.85)]  # 15% — validation
+    test_set = train.iloc[int(n * 0.85) :]   # 15% — test
 
     print(f"Train: {len(train_set):,}")
     print(f"CV:    {len(cv_set):,}")
