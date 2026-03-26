@@ -26,6 +26,12 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# Configura tracking URI via variável de ambiente (suporta file:// e http://)
+mlflow_tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
+if mlflow_tracking_uri:
+    mlflow.set_tracking_uri(mlflow_tracking_uri)
+    logger.info(f"MLflow tracking URI: {mlflow_tracking_uri}")
+
 # ---------------------------------------------------------------------------
 # Autenticação
 # ---------------------------------------------------------------------------
@@ -53,23 +59,53 @@ async def load_model():
     run_id = os.getenv("MLFLOW_RUN_ID")
 
     if not run_id:
-        mlflow.set_experiment("fraud_detection")
+        experiment_name = os.getenv("MLFLOW_EXPERIMENT_NAME", "fraud_detection")
         client = mlflow.tracking.MlflowClient()
-        exp = client.get_experiment_by_name("fraud_detection")
+        exp = client.get_experiment_by_name(experiment_name)
+
+        if exp is None:
+            raise RuntimeError(
+                f"Experimento MLflow '{experiment_name}' não encontrado. "
+                "Monte o diretório mlruns com -v e defina MLFLOW_TRACKING_URI=file:///app/mlruns."
+            )
+
         runs = client.search_runs(
             experiment_ids=[exp.experiment_id],
+            filter_string="attributes.status = 'FINISHED'",
             order_by=["start_time DESC"],
             max_results=1,
         )
+
+        if not runs:
+            raise RuntimeError(
+                f"Nenhum run FINISHED encontrado no experimento '{experiment_name}'. "
+                "Treine o modelo antes (python main.py) e monte o mlruns no container."
+            )
+
         run_id = runs[0].info.run_id
 
     logger.info(f"A carregar modelo do run: {run_id}")
-    model = mlflow.sklearn.load_model(f"runs:/{run_id}/model")
 
-    # Carrega artefactos guardados pelo main.py
-    client = mlflow.tracking.MlflowClient()
-    local_dir = client.download_artifacts(run_id, "train_artifacts")
-    artifacts = joblib.load(os.path.join(local_dir, "artifacts.pkl"))
+    tracking_uri = mlflow.get_tracking_uri()
+    if tracking_uri.startswith("file:"):
+        # O artifact_uri no meta.yaml guarda o path absoluto do host.
+        # Construímos o path a partir do tracking URI configurado no container.
+        base_path = tracking_uri[len("file:"):].lstrip("/")
+        if not base_path.startswith("/"):
+            base_path = "/" + base_path
+        client = mlflow.tracking.MlflowClient()
+        exp_id = client.get_run(run_id).info.experiment_id
+        artifact_base = os.path.join(base_path, exp_id, run_id, "artifacts")
+        model = mlflow.sklearn.load_model(os.path.join(artifact_base, "model"))
+        artifacts = joblib.load(
+            os.path.join(artifact_base, "train_artifacts", "artifacts.pkl")
+        )
+    else:
+        # Tracking remoto (http://, s3://, etc.)
+        model = mlflow.sklearn.load_model(f"runs:/{run_id}/model")
+        client = mlflow.tracking.MlflowClient()
+        local_dir = client.download_artifacts(run_id, "train_artifacts")
+        artifacts = joblib.load(os.path.join(local_dir, "artifacts.pkl"))
 
     logger.info("Modelo e artefactos carregados com sucesso!")
 
