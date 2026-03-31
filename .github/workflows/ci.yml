@@ -106,7 +106,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-mock pytest-timeout  # fix: pytest-timeout em falta
+          pip install -r requirements-dev.txt
 
       - name: Run data quality tests
         run: |
@@ -130,7 +130,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-mock pytest-timeout  # fix: pytest-timeout em falta
+          pip install -r requirements-dev.txt
 
       - name: Run model quality tests
         run: |
@@ -157,7 +157,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-mock pytest-timeout  # fix: pytest-timeout em falta
+          pip install -r requirements-dev.txt
 
       - name: Run feature engineering tests
         run: |
@@ -216,7 +216,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-timeout  # fix: pytest-timeout em falta
+          pip install -r requirements-dev.txt
 
       - name: Run smoke tests
         run: pytest tests/ -m smoke -v --tb=short
