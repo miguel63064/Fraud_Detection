@@ -51,7 +51,7 @@ def split_train_data(train):
 
     train_set = train.iloc[: int(n * 0.70)]  # 70% — train
     cv_set = train.iloc[int(n * 0.70) : int(n * 0.85)]  # 15% — validation
-    test_set = train.iloc[int(n * 0.85) :]   # 15% — test
+    test_set = train.iloc[int(n * 0.85) :]  # 15% — test
 
     print(f"Train: {len(train_set):,}")
     print(f"CV:    {len(cv_set):,}")

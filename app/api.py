@@ -9,22 +9,27 @@ import os
 import joblib
 import mlflow
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Security, Depends
+from contextlib import asynccontextmanager
+from dotenv import load_dotenv
+
+load_dotenv()
+from fastapi import FastAPI, HTTPException, Security, Depends, Request
 from fastapi.security.api_key import APIKeyHeader
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Annotated, Optional
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 import logging
 
 from src.feature_engineer import transform
+from src.monitoring import detect_drift
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(
-    title="Fraud Detection API",
-    description="Real-time fraud detection for financial transactions — LightGBM + MLflow.",
-    version="1.0.0",
-)
+limiter = Limiter(key_func=get_remote_address)
 
 # Configure MLflow tracking URI from environment (supports file:// and http://)
 mlflow_tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
@@ -35,7 +40,9 @@ if mlflow_tracking_uri:
 # ---------------------------------------------------------------------------
 # Authentication
 # ---------------------------------------------------------------------------
-API_KEY = os.getenv("FRAUD_API_KEY", "fraud")
+API_KEY = os.getenv("FRAUD_API_KEY")
+if not API_KEY:
+    raise RuntimeError("FRAUD_API_KEY environment variable is not set.")
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
@@ -52,11 +59,17 @@ artifacts = None        # training artifacts: medians, encoder, freq_maps, ...
 reference_stats = None  # training distribution stats for drift detection
 
 # ---------------------------------------------------------------------------
-# Startup
+# Startup / Shutdown
 # ---------------------------------------------------------------------------
-@app.on_event("startup")
-async def load_model() -> None:
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     """Load model and training artifacts from MLflow on application startup."""
+    global model, artifacts, reference_stats
+    await _load_model()
+    yield
+
+
+async def _load_model() -> None:
     global model, artifacts, reference_stats
 
     run_id = os.getenv("MLFLOW_RUN_ID")
@@ -125,11 +138,23 @@ async def load_model() -> None:
     logger.info("Model and artifacts loaded successfully.")
 
 # ---------------------------------------------------------------------------
+# App instance (declared after lifespan so the reference is valid)
+# ---------------------------------------------------------------------------
+app = FastAPI(
+    title="Fraud Detection API",
+    description="Real-time fraud detection for financial transactions — LightGBM + MLflow.",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
+
+# ---------------------------------------------------------------------------
 # Request / Response schemas
 # ---------------------------------------------------------------------------
 class TransactionInput(BaseModel):
-    TransactionDT: float
-    TransactionAmt: float
+    TransactionDT: Annotated[float, Field(gt=0)]
+    TransactionAmt: Annotated[float, Field(gt=0)]
     ProductCD: Optional[str] = None
     card1: Optional[float] = None
     card2: Optional[float] = None
@@ -200,6 +225,15 @@ class BatchResponse(BaseModel):
     total: int
     fraud_count: int
 
+
+class DriftReport(BaseModel):
+    drift_detected: bool
+    n_samples: int
+    drifted_features: list[str]
+    numerical: dict
+    categorical: dict
+
+
 # ---------------------------------------------------------------------------
 # Inference
 # ---------------------------------------------------------------------------
@@ -234,7 +268,9 @@ async def health() -> dict:
 
 
 @app.post("/predict", response_model=PredictionResponse, tags=["Inference"])
+@limiter.limit("60/minute")
 async def predict(
+    request: Request,
     transaction: TransactionInput,
     _: str = Depends(verify_api_key),
 ):
@@ -249,7 +285,9 @@ async def predict(
 
 
 @app.post("/predict/batch", response_model=BatchResponse, tags=["Inference"])
+@limiter.limit("10/minute")
 async def predict_batch(
+    request: Request,
     payload: BatchInput,
     _: str = Depends(verify_api_key),
 ):
@@ -262,3 +300,30 @@ async def predict_batch(
         total=len(predictions),
         fraud_count=sum(1 for p in predictions if p.is_fraud),
     )
+
+
+@app.post("/monitor/drift", response_model=DriftReport, tags=["Monitoring"])
+@limiter.limit("20/minute")
+async def monitor_drift(
+    request: Request,
+    payload: BatchInput,
+    _: str = Depends(verify_api_key),
+):
+    """
+    Compare a batch of incoming transactions against the training distribution.
+
+    Returns a drift report with per-feature KS / chi-squared test results.
+    Requires ``reference_stats.json`` in the MLflow run artifacts — generated
+    automatically when you train with ``python main.py``.
+    """
+    if reference_stats is None:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Drift detection unavailable — retrain the model to generate "
+                "reference_stats.json."
+            ),
+        )
+    batch_df = pd.DataFrame([t.model_dump() for t in payload.transactions])
+    report = detect_drift(batch_df, reference_stats)
+    return DriftReport(**report)

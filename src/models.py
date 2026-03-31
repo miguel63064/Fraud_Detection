@@ -23,15 +23,15 @@ def lgb_model(scale_pos_weight):
 
 def xgb_model(scale_pos_weight):
     params = dict(
-        n_estimators=500,        # max trees
-        learning_rate=0.03,      # shrinkage factor per step
-        max_depth=6,             # tree depth
-        min_child_weight=5,      # min samples per leaf (reduces rare-fraud overfitting)
+        n_estimators=500,  # max trees
+        learning_rate=0.03,  # shrinkage factor per step
+        max_depth=6,  # tree depth
+        min_child_weight=5,  # min samples per leaf (reduces rare-fraud overfitting)
         gamma=1,
-        subsample=0.8,           # row subsampling
-        colsample_bytree=0.8,    # feature subsampling
+        subsample=0.8,  # row subsampling
+        colsample_bytree=0.8,  # feature subsampling
         scale_pos_weight=scale_pos_weight,  # class imbalance weight
-        eval_metric="auc",       # early-stopping metric
+        eval_metric="auc",  # early-stopping metric
         random_state=42,
         early_stopping_rounds=50,
     )

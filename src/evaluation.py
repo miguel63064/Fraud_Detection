@@ -68,6 +68,6 @@ def plot_importance(model):
     print("\nTop 10 features:")
     print(importance.head(10).to_string())
     print(f"\nFeatures with zero importance: {(importance['importance']==0).sum()}")
-    print(importance[importance['importance']==0]['feature'].tolist())
+    print(importance[importance["importance"] == 0]["feature"].tolist())
 
     return importance
