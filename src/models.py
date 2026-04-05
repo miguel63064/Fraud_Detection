@@ -103,3 +103,66 @@ def best_optimize_lgb(x_train, y_train, x_cv, y_cv, x_test, y_test, n_trials):
     model = lgb.LGBMClassifier(**best_params)
 
     return model
+
+
+def optimize_xgb(x_train, y_train, x_cv, y_cv, x_test, y_test, scale_pos_weight, n_trials=50):
+
+    def objective(trial):
+        params = dict(
+            n_estimators=trial.suggest_int("n_estimators", 300, 3000),
+            learning_rate=trial.suggest_float("learning_rate", 0.005, 0.05, log=True),
+            max_depth=trial.suggest_int("max_depth", 3, 10),
+            min_child_weight=trial.suggest_int("min_child_weight", 1, 20),
+            gamma=trial.suggest_float("gamma", 0.0, 5.0),
+            subsample=trial.suggest_float("subsample", 0.5, 1.0),
+            colsample_bytree=trial.suggest_float("colsample_bytree", 0.4, 1.0),
+            reg_lambda=trial.suggest_float("reg_lambda", 0.1, 10.0, log=True),
+            reg_alpha=trial.suggest_float("reg_alpha", 0.1, 10.0, log=True),
+            scale_pos_weight=scale_pos_weight,
+            eval_metric="auc",
+            early_stopping_rounds=50,
+            random_state=42,
+            verbosity=0,
+        )
+
+        model = xgb.XGBClassifier(**params)
+        model.fit(x_train, y_train, eval_set=[(x_cv, y_cv)], verbose=False)
+
+        preds = model.predict_proba(x_cv)[:, 1]
+        preds_test = model.predict_proba(x_test)[:, 1]
+        auc = roc_auc_score(y_cv, preds)
+        test_auc = roc_auc_score(y_test, preds_test)
+        trial.set_user_attr("test_auc", test_auc)
+        return auc
+
+    def callback(study, trial):
+        print(
+            f'Trial {trial.number:3d} | AUC: {trial.value:.4f} | Test AUC: {trial.user_attrs.get("test_auc", 0):.4f} | Best: {study.best_value:.4f}'
+        )
+
+        with mlflow.start_run(run_name=f"trial_{trial.number}", nested=True):
+            mlflow.log_params(trial.params)
+            mlflow.log_metric("test_auc", trial.user_attrs.get("test_auc", 0))
+            mlflow.log_metric("cv_auc", trial.value)
+
+    study = optuna.create_study(direction="maximize")
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    study.optimize(objective, n_trials=n_trials, callbacks=[callback])
+
+    print(f"\nBest AUC: {study.best_value:.4f}")
+    print(f"Best parameters: {study.best_params}")
+
+    return study.best_params
+
+
+def best_optimize_xgb(x_train, y_train, x_cv, y_cv, x_test, y_test, scale_pos_weight, n_trials=50):
+    best_params = optimize_xgb(
+        x_train, y_train, x_cv, y_cv, x_test, y_test, scale_pos_weight, n_trials=n_trials
+    )
+    best_params["early_stopping_rounds"] = 50
+    best_params["eval_metric"] = "auc"
+    best_params["random_state"] = 42
+    best_params["verbosity"] = 0
+    model = xgb.XGBClassifier(**best_params)
+
+    return model

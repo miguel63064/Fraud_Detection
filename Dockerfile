@@ -17,6 +17,7 @@ RUN pip install --upgrade pip && \
 
 COPY app/ ./app/
 COPY src/ ./src/
+COPY mlruns/ ./mlruns/
 
 EXPOSE 8000
 

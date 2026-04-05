@@ -17,8 +17,6 @@ Trains a LightGBM classifier, tracks experiments with MLflow, exposes a REST API
 8. [Run with Docker](#run-with-docker)
 9. [Run with Docker Compose](#run-with-docker-compose)
 10. [MLflow UI](#mlflow-ui)
-11. [Troubleshooting](#troubleshooting)
-
 ---
 
 ## Project Structure
@@ -54,7 +52,6 @@ fraud_project/
 ## Setup
 
 ### Prerequisites
-
 - Python 3.11 (via conda or system)
 - Raw data CSVs in `data/raw/` (IEEE-CIS Fraud Detection — Kaggle)
 
@@ -469,4 +466,3 @@ docker build --no-cache -t fraud_app .
 export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 pytest tests/
 ```
-

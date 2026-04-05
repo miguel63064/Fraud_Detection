@@ -15,8 +15,11 @@ from src.feature_engineer import fit_transform
 from src.load_data import load_data, prepare_final_test, split_train_data
 from src.models import (
     best_optimize_lgb,
+    best_optimize_xgb,
     lgb_model,
+    xgb_model,
     optimize_lgb,
+    best_optimize_xgb,
     train_model,
     xgb_model,
 )
@@ -26,7 +29,7 @@ from src.predict import submission
 
 mlflow.set_experiment("fraud_detection")
 
-with mlflow.start_run(run_name="lgb_best_params"):
+with mlflow.start_run(run_name="lgb_model"):
     train, test = load_data()
     print("Data loaded.")
 
@@ -41,7 +44,7 @@ with mlflow.start_run(run_name="lgb_best_params"):
     )
     x_final_test, test_ids = prepare_final_test(test)
 
-    # model = best_optimize_lgb(x_train, y_train, x_cv, y_cv, x_test, y_test, 50)
+    #model = best_optimize_xgb(x_train, y_train, x_cv, y_cv, x_test, y_test, scale_pos_weight, 50)
     model = lgb_model(scale_pos_weight)
     train_model(model, x_train, y_train, x_cv, y_cv)
 

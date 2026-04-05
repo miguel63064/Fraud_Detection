@@ -51,24 +51,34 @@ FREQ_COLS = [
 
 
 def _combine_features(df):
-    df["uid1"] = df["card1"].astype(str) + "_" + df["addr1"].astype(str)
-    df["uid2"] = df["card1"].astype(str) + "_" + df["card2"].astype(str)
-    df["uid3"] = df["card1"].astype(str) + "_" + df["P_emaildomain"].astype(str)
+    new_cols = {
+        "uid1": df["card1"].astype(str) + "_" + df["addr1"].astype(str),
+        "uid2": df["card1"].astype(str) + "_" + df["card2"].astype(str),
+        "uid3": df["card1"].astype(str) + "_" + df["P_emaildomain"].astype(str),
+    }
+    return pd.concat([df, pd.DataFrame(new_cols, index=df.index)], axis=1)
 
 
 def _time_features(df):
-    df["day"] = df["TransactionDT"] // (3600 * 24)
-    df["day_of_week"] = df["day"] % 7
-    df["hour"] = (df["TransactionDT"] // 3600) % 24
+    day = df["TransactionDT"] // (3600 * 24)
+    new_cols = {
+        "day": day,
+        "day_of_week": day % 7,
+        "hour": (df["TransactionDT"] // 3600) % 24,
+    }
+    return pd.concat([df, pd.DataFrame(new_cols, index=df.index)], axis=1)
 
 
 def _amt_email_features(df):
-    df["amt_log"] = np.log1p(df["TransactionAmt"])
-    df["amt_is_round"] = (df["TransactionAmt"] % 1 == 0).astype(int)
-    df["amt_vs_uid_mean"] = df["TransactionAmt"] / (df["uid1_TransactionAmt_mean"] + 1)
-    df["amt_decimal"] = df["TransactionAmt"] - np.floor(df["TransactionAmt"])
-    df["P_email_suffix"] = df["P_emaildomain"].str.split(".").str[-1]
-    df["same_email"] = (df["P_emaildomain"] == df["R_emaildomain"]).astype(int)
+    new_cols = {
+        "amt_log": np.log1p(df["TransactionAmt"]),
+        "amt_is_round": (df["TransactionAmt"] % 1 == 0).astype(int),
+        "amt_vs_uid_mean": df["TransactionAmt"] / (df["uid1_TransactionAmt_mean"] + 1),
+        "amt_decimal": df["TransactionAmt"] - np.floor(df["TransactionAmt"]),
+        "P_email_suffix": df["P_emaildomain"].str.split(".").str[-1],
+        "same_email": (df["P_emaildomain"] == df["R_emaildomain"]).astype(int),
+    }
+    return pd.concat([df, pd.DataFrame(new_cols, index=df.index)], axis=1)
 
 
 # =============================================================================
@@ -107,8 +117,8 @@ def fit_transform(train, test):
             test[col] = test[col].fillna("unknown")
 
     # 2. Combine features (stateless — only creates new columns)
-    _combine_features(train)
-    _combine_features(test)
+    train = _combine_features(train)
+    test = _combine_features(test)
 
     # 3. Categorical encoding — fit on train, transform both
     cols_present = [c for c in CAT_COLS if c in train.columns]
@@ -127,21 +137,22 @@ def fit_transform(train, test):
     uid1_agg.columns = ["uid1_" + "_".join(c) for c in uid1_agg.columns]
     artifacts["uid1_agg"] = uid1_agg
 
-    for col in uid1_agg.columns:
-        train[col] = train["uid1"].map(uid1_agg[col]).fillna(-999)
-        test[col] = test["uid1"].map(uid1_agg[col]).fillna(-999)
+    uid1_train = {col: train["uid1"].map(uid1_agg[col]).fillna(-999) for col in uid1_agg.columns}
+    uid1_test = {col: test["uid1"].map(uid1_agg[col]).fillna(-999) for col in uid1_agg.columns}
+    train = pd.concat([train, pd.DataFrame(uid1_train, index=train.index)], axis=1)
+    test = pd.concat([test, pd.DataFrame(uid1_test, index=test.index)], axis=1)
 
     # 5. Time features
     dt_max = train["TransactionDT"].max()
     artifacts["dt_max"] = dt_max
-    _time_features(train)
-    _time_features(test)
-    train["dt_normalized"] = train["TransactionDT"] / dt_max
-    test["dt_normalized"] = test["TransactionDT"] / dt_max
+    train = _time_features(train)
+    test = _time_features(test)
+    train = pd.concat([train, pd.DataFrame({"dt_normalized": train["TransactionDT"] / dt_max}, index=train.index)], axis=1)
+    test = pd.concat([test, pd.DataFrame({"dt_normalized": test["TransactionDT"] / dt_max}, index=test.index)], axis=1)
 
     # 6. Amount + email features
-    _amt_email_features(train)
-    _amt_email_features(test)
+    train = _amt_email_features(train)
+    test = _amt_email_features(test)
 
     # 7. Frequency encoding — fit on train, map to both
     freq_maps = {}
@@ -187,7 +198,7 @@ def transform(df, artifacts):
         df[col] = df[col].fillna("unknown")
 
     # 2. Combine features
-    _combine_features(df)
+    df = _combine_features(df)
 
     # 3. Categorical encoding — apply training encoder
     enc = artifacts.get("enc")
@@ -198,10 +209,10 @@ def transform(df, artifacts):
     # 4. Aggregate user stats — map from training aggregation table
     uid1_agg = artifacts.get("uid1_agg")
     if uid1_agg is not None:
-        for col in uid1_agg.columns:
-            df[col] = df["uid1"].map(uid1_agg[col]).fillna(-999)
+        uid1_cols = {col: df["uid1"].map(uid1_agg[col]).fillna(-999) for col in uid1_agg.columns}
+        df = pd.concat([df, pd.DataFrame(uid1_cols, index=df.index)], axis=1)
     else:
-        for col in [
+        fallback = {col: -999 for col in [
             "uid1_TransactionAmt_mean",
             "uid1_TransactionAmt_std",
             "uid1_TransactionAmt_max",
@@ -210,16 +221,16 @@ def transform(df, artifacts):
             "uid1_D1_std",
             "uid1_C1_mean",
             "uid1_C1_sum",
-        ]:
-            df[col] = -999
+        ]}
+        df = pd.concat([df, pd.DataFrame(fallback, index=df.index)], axis=1)
 
     # 5. Time features
     dt_max = artifacts.get("dt_max", 1)
-    _time_features(df)
-    df["dt_normalized"] = df["TransactionDT"] / dt_max
+    df = _time_features(df)
+    df = pd.concat([df, pd.DataFrame({"dt_normalized": df["TransactionDT"] / dt_max}, index=df.index)], axis=1)
 
     # 6. Amount + email features
-    _amt_email_features(df)
+    df = _amt_email_features(df)
 
     # 7. Frequency encoding — apply training frequency maps
     freq_maps = artifacts.get("freq_maps", {})
