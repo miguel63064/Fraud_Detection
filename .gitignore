@@ -9,6 +9,35 @@ mlruns/
 *.sh
 *.pkl
 
+# Cobertura de testes
+coverage.xml
+.coverage
+htmlcov/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Artifacts de treino
+tmp_artifacts/
+
+# MLflow DB local
+mlflow.db
+
+# Ficheiros de ambiente
+.env
+
+# IDE e ferramentas locais
+.idea/
+
+# Ambientes virtuais
+.venv/
+venv/
+env/
+
+# Pytest cache
+.pytest_cache/
+
 
 
 
