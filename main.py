@@ -44,7 +44,7 @@ with mlflow.start_run(run_name="lgb_model"):
     )
     x_final_test, test_ids = prepare_final_test(test)
 
-    #model = best_optimize_xgb(x_train, y_train, x_cv, y_cv, x_test, y_test, scale_pos_weight, 50)
+    # model = best_optimize_xgb(x_train, y_train, x_cv, y_cv, x_test, y_test, scale_pos_weight, 50)
     model = lgb_model(scale_pos_weight)
     train_model(model, x_train, y_train, x_cv, y_cv)
 

@@ -105,8 +105,9 @@ def best_optimize_lgb(x_train, y_train, x_cv, y_cv, x_test, y_test, n_trials):
     return model
 
 
-def optimize_xgb(x_train, y_train, x_cv, y_cv, x_test, y_test, scale_pos_weight, n_trials=50):
-
+def optimize_xgb(
+    x_train, y_train, x_cv, y_cv, x_test, y_test, scale_pos_weight, n_trials=50
+):
     def objective(trial):
         params = dict(
             n_estimators=trial.suggest_int("n_estimators", 300, 3000),
@@ -155,9 +156,18 @@ def optimize_xgb(x_train, y_train, x_cv, y_cv, x_test, y_test, scale_pos_weight,
     return study.best_params
 
 
-def best_optimize_xgb(x_train, y_train, x_cv, y_cv, x_test, y_test, scale_pos_weight, n_trials=50):
+def best_optimize_xgb(
+    x_train, y_train, x_cv, y_cv, x_test, y_test, scale_pos_weight, n_trials=50
+):
     best_params = optimize_xgb(
-        x_train, y_train, x_cv, y_cv, x_test, y_test, scale_pos_weight, n_trials=n_trials
+        x_train,
+        y_train,
+        x_cv,
+        y_cv,
+        x_test,
+        y_test,
+        scale_pos_weight,
+        n_trials=n_trials,
     )
     best_params["early_stopping_rounds"] = 50
     best_params["eval_metric"] = "auc"

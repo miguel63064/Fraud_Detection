@@ -137,8 +137,12 @@ def fit_transform(train, test):
     uid1_agg.columns = ["uid1_" + "_".join(c) for c in uid1_agg.columns]
     artifacts["uid1_agg"] = uid1_agg
 
-    uid1_train = {col: train["uid1"].map(uid1_agg[col]).fillna(-999) for col in uid1_agg.columns}
-    uid1_test = {col: test["uid1"].map(uid1_agg[col]).fillna(-999) for col in uid1_agg.columns}
+    uid1_train = {
+        col: train["uid1"].map(uid1_agg[col]).fillna(-999) for col in uid1_agg.columns
+    }
+    uid1_test = {
+        col: test["uid1"].map(uid1_agg[col]).fillna(-999) for col in uid1_agg.columns
+    }
     train = pd.concat([train, pd.DataFrame(uid1_train, index=train.index)], axis=1)
     test = pd.concat([test, pd.DataFrame(uid1_test, index=test.index)], axis=1)
 
@@ -147,8 +151,24 @@ def fit_transform(train, test):
     artifacts["dt_max"] = dt_max
     train = _time_features(train)
     test = _time_features(test)
-    train = pd.concat([train, pd.DataFrame({"dt_normalized": train["TransactionDT"] / dt_max}, index=train.index)], axis=1)
-    test = pd.concat([test, pd.DataFrame({"dt_normalized": test["TransactionDT"] / dt_max}, index=test.index)], axis=1)
+    train = pd.concat(
+        [
+            train,
+            pd.DataFrame(
+                {"dt_normalized": train["TransactionDT"] / dt_max}, index=train.index
+            ),
+        ],
+        axis=1,
+    )
+    test = pd.concat(
+        [
+            test,
+            pd.DataFrame(
+                {"dt_normalized": test["TransactionDT"] / dt_max}, index=test.index
+            ),
+        ],
+        axis=1,
+    )
 
     # 6. Amount + email features
     train = _amt_email_features(train)
@@ -209,25 +229,38 @@ def transform(df, artifacts):
     # 4. Aggregate user stats — map from training aggregation table
     uid1_agg = artifacts.get("uid1_agg")
     if uid1_agg is not None:
-        uid1_cols = {col: df["uid1"].map(uid1_agg[col]).fillna(-999) for col in uid1_agg.columns}
+        uid1_cols = {
+            col: df["uid1"].map(uid1_agg[col]).fillna(-999) for col in uid1_agg.columns
+        }
         df = pd.concat([df, pd.DataFrame(uid1_cols, index=df.index)], axis=1)
     else:
-        fallback = {col: -999 for col in [
-            "uid1_TransactionAmt_mean",
-            "uid1_TransactionAmt_std",
-            "uid1_TransactionAmt_max",
-            "uid1_TransactionAmt_min",
-            "uid1_D1_mean",
-            "uid1_D1_std",
-            "uid1_C1_mean",
-            "uid1_C1_sum",
-        ]}
+        fallback = {
+            col: -999
+            for col in [
+                "uid1_TransactionAmt_mean",
+                "uid1_TransactionAmt_std",
+                "uid1_TransactionAmt_max",
+                "uid1_TransactionAmt_min",
+                "uid1_D1_mean",
+                "uid1_D1_std",
+                "uid1_C1_mean",
+                "uid1_C1_sum",
+            ]
+        }
         df = pd.concat([df, pd.DataFrame(fallback, index=df.index)], axis=1)
 
     # 5. Time features
     dt_max = artifacts.get("dt_max", 1)
     df = _time_features(df)
-    df = pd.concat([df, pd.DataFrame({"dt_normalized": df["TransactionDT"] / dt_max}, index=df.index)], axis=1)
+    df = pd.concat(
+        [
+            df,
+            pd.DataFrame(
+                {"dt_normalized": df["TransactionDT"] / dt_max}, index=df.index
+            ),
+        ],
+        axis=1,
+    )
 
     # 6. Amount + email features
     df = _amt_email_features(df)
